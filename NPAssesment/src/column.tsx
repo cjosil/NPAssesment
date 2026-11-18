@@ -9,37 +9,97 @@ interface Task {
   status: 'todo' | 'in_progress' | 'in_review' | 'done';
   priority?: 'low' | 'normal' | 'high';
   due_date?: string;
+  user_id: string;
 }
 
 interface ColumnProps {
-  id: string;
+  id: 'todo' | 'in_progress' | 'in_review' | 'done';
   title: string;
   headerColor: string;
   tasks: Task[];
   onTaskClick?: (task: Task) => void;
+  onAddTask: (status: ColumnProps['id'], title: string) => Promise<void>;
+  onRemoveTask: (task: Task) => Promise<void>;
+  onMoveTask: (taskId: string, newStatus: ColumnProps['id']) => Promise<void>;
 }
 
 export const Column: React.FC<ColumnProps> = ({
+  id,
   title,
   headerColor,
   tasks,
   onTaskClick,
+  onAddTask,
+  onRemoveTask,
+  onMoveTask,
 }) => {
+  const [isAddingTask, setIsAddingTask] = React.useState(false);
+  const [newTaskTitle, setNewTaskTitle] = React.useState('');
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [addError, setAddError] = React.useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = React.useState(false);
+
+  const handleAddTask = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedTitle = newTaskTitle.trim();
+    if (!trimmedTitle || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setAddError(null);
+    try {
+      await onAddTask(id, trimmedTitle);
+      setNewTaskTitle('');
+      setIsAddingTask(false);
+    } catch (error) {
+      setAddError(error instanceof Error ? error.message : 'Failed to add task');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  }
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  }
+
+  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const taskId = e.dataTransfer.getData('taskId');
+  };
+
   return (
-    <div className="bg-slate-50/70 rounded-xl p-4 flex flex-col max-h-full border border-slate-200/60">
-      {/* Column Header */}
-      <div className="flex items-center justify-between mb-3 px-1">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: headerColor }} />
-          <h3 className="text-sm font-semibold text-slate-700">{title}</h3>
-          <span className="text-xs font-medium text-slate-400 bg-slate-200/60 px-2 py-0.5 rounded-full">
+    <section 
+    className="task-column"
+    onDragOver={handleDragOver}
+    onDragLeave={handleDragLeave}
+    onDrop={handleDrop}
+    >
+      <div className="task-column__header">
+        <div className="task-column__label">
+          <span className="task-column__dot" style={{ backgroundColor: headerColor }} />
+          <h2>{title}</h2>
+          <span className="task-column__count">
             {tasks.length}
           </span>
         </div>
+        <button
+          className="task-column__add-button"
+          type="button"
+          onClick={() => {
+            setAddError(null);
+            setIsAddingTask(true);
+          }}
+        >
+          + 
+        </button>
       </div>
 
-      {/* Task List Area */}
-      <div className="flex flex-col gap-3 overflow-y-auto min-h-[150px] flex-1">
+      <div className="task-column__tasks">
         {tasks.map((task) => (
           <TaskCard
             key={task.id}
@@ -50,9 +110,43 @@ export const Column: React.FC<ColumnProps> = ({
             dueDate={task.due_date}
             accentColor={headerColor}
             onClick={() => onTaskClick?.(task)}
+            onRemove={() => onRemoveTask(task)}
           />
         ))}
       </div>
-    </div>
+
+      {isAddingTask && (
+        <form className="task-column__add-task-form" onSubmit={handleAddTask}>
+          <input
+            id={`new-task-${id}`}
+            type="text"
+            placeholder="Enter task title..."
+            value={newTaskTitle}
+            onChange={(e) => setNewTaskTitle(e.target.value)}
+            autoFocus
+            maxLength={200}
+            required
+            disabled={isSubmitting}
+          />
+          {addError && <p className="task-column__form-error" role="alert">{addError}</p>}
+          <div className="task-column__form-actions">
+            <button type="submit" disabled={isSubmitting || !newTaskTitle.trim()}>
+              {isSubmitting ? 'Adding...' : 'Add'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsAddingTask(false);
+                setNewTaskTitle('');
+                setAddError(null);
+              }}
+              disabled={isSubmitting}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
   );
 };

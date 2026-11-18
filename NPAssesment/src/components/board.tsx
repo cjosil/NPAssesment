@@ -2,11 +2,12 @@
 import React, { useEffect, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { Column } from '../column';
+import './board.css';
 
 // Initialize Supabase Client using public publishable/anon key
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 interface Task {
   id: string;
@@ -18,14 +19,16 @@ interface Task {
   user_id: string;
 }
 
+type TaskStatus = Task['status'];
+
 interface ColumnConfig {
-  id: 'todo' | 'in_progress' | 'in_review' | 'done';
+  id: TaskStatus;
   title: string;
   headerColor: string;
 }
 
 const COLUMNS: ColumnConfig[] = [
-  { id: 'todo', title: 'To Do', headerColor: '#94a3b8' },         // Slate
+  { id: 'todo', title: 'To Do', headerColor: '#ff0000' },         // Slate
   { id: 'in_progress', title: 'In Progress', headerColor: '#3b82f6' }, // Blue
   { id: 'in_review', title: 'In Review', headerColor: '#f59e0b' },   // Amber
   { id: 'done', title: 'Done', headerColor: '#10b981' },             // Emerald
@@ -66,19 +69,51 @@ export const Board: React.FC = () => {
     initSessionAndFetchTasks();
   }, []);
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Loading board...</div>;
-  if (error) return <div className="p-8 text-center text-rose-500">Error: {error}</div>;
+  const addTask = async (status: TaskStatus, title: string) => {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+    if (userError) throw userError;
+    if (!user) throw new Error('You must be signed in to add a task');
+
+    const { data, error: insertError } = await supabase
+      .from('tasks')
+      .insert({ title, status, user_id: user.id })
+      .select('*')
+      .single();
+
+    if (insertError) throw insertError;
+    setTasks((currentTasks) => [...currentTasks, data as Task]);
+  };
+
+  const removeTask = async (task: Task) => {
+    const { error: deleteError } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', task.id)
+      .select('id')
+      .single();
+
+    if (deleteError) throw deleteError;
+    setTasks((currentTasks) => currentTasks.filter((currentTask) => currentTask.id !== task.id));
+  };
 
   return (
-    <div className="h-screen w-screen bg-slate-100 flex flex-col overflow-hidden">
-      {/* Board Header */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-lg font-bold text-slate-800">Next Play Games Task Board</h1>
+    <div className="task-board">
+      <header className="task-board__header">
+        <h1>Hello, Welcome!</h1>
       </header>
 
-      {/* Main 4-Column Grid Layout */}
-      <main className="flex-1 p-6 overflow-x-auto">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 h-full items-start">
+      {loading && <p className="task-board__status">Loading tasks...</p>}
+      {error && (
+        <p className="task-board__status task-board__status--error" role="alert">
+          Could not load tasks: {error}. Check your Supabase project API URL and configuration.
+        </p>
+      )}
+
+      <main className="task-board__content">
+        <div className="task-board__grid">
           {COLUMNS.map((col) => {
             const columnTasks = tasks.filter((task) => task.status === col.id);
             return (
@@ -88,6 +123,8 @@ export const Board: React.FC = () => {
                 title={col.title}
                 headerColor={col.headerColor}
                 tasks={columnTasks}
+                onAddTask={addTask}
+                onRemoveTask={removeTask}
                 onTaskClick={(task) => console.log('Clicked task:', task.title)}
               />
             );

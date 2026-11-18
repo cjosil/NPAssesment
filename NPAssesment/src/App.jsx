@@ -1,15 +1,8 @@
-import { useState } from 'react'
-import Header from './header.jsx'
 import './App.css'
+import { Board } from './components/board.tsx'
 
 function App() {
-  const [count, setCount] = useState(0)
-
-  return (
-    <div>
-      <Header />
-    </div>
-  )
+  return <Board />
 }
 
 export default App
