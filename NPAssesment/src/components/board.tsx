@@ -99,6 +99,30 @@ export const Board: React.FC = () => {
     setTasks((currentTasks) => currentTasks.filter((currentTask) => currentTask.id !== task.id));
   };
 
+  const handleMoveTask = async (
+    taskId: string,
+    newStatus: TaskStatus
+  ) => {
+    const existingTask = tasks.find((task) => task.id === taskId);
+    if (!existingTask || existingTask.status === newStatus) return;
+
+    const { data, error: updateError } = await supabase
+      .from('tasks')
+      .update({ status: newStatus })
+      .eq('id', taskId)
+      .select('id')
+      .single();
+
+    if (updateError) throw updateError;
+    if (!data) throw new Error('Task was not found or you do not have permission to move it');
+
+    setTasks((currentTasks) =>
+      currentTasks.map((task) =>
+        task.id === taskId ? { ...task, status: newStatus } : task
+      )
+    );
+  };
+
   return (
     <div className="task-board">
       <header className="task-board__header">
@@ -126,6 +150,7 @@ export const Board: React.FC = () => {
                 onAddTask={addTask}
                 onRemoveTask={removeTask}
                 onTaskClick={(task) => console.log('Clicked task:', task.title)}
+                onMoveTask={handleMoveTask}
               />
             );
           })}

@@ -38,6 +38,7 @@ export const Column: React.FC<ColumnProps> = ({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [addError, setAddError] = React.useState<string | null>(null);
   const [isDragOver, setIsDragOver] = React.useState(false);
+  const [moveError, setMoveError] = React.useState<string | null>(null);
 
   const handleAddTask = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -57,27 +58,37 @@ export const Column: React.FC<ColumnProps> = ({
     }
   };
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
     setIsDragOver(true);
-  }
+  };
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (e: React.DragEvent<HTMLElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
     setIsDragOver(false);
-  }
+  };
 
-  const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = async (e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
     setIsDragOver(false);
-    const taskId = e.dataTransfer.getData('taskId');
+    const taskId = e.dataTransfer.getData('taskId').trim();
+    if (!taskId) return;
+
+    setMoveError(null);
+    try {
+      await onMoveTask(taskId, id);
+    } catch (error) {
+      setMoveError(error instanceof Error ? error.message : 'Failed to move task');
+    }
   };
 
   return (
-    <section 
-    className="task-column"
-    onDragOver={handleDragOver}
-    onDragLeave={handleDragLeave}
-    onDrop={handleDrop}
+    <section
+      className={`task-column${isDragOver ? ' task-column--drag-over' : ''}`}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
       <div className="task-column__header">
         <div className="task-column__label">
@@ -114,6 +125,8 @@ export const Column: React.FC<ColumnProps> = ({
           />
         ))}
       </div>
+
+      {moveError && <p className="task-column__form-error" role="alert">{moveError}</p>}
 
       {isAddingTask && (
         <form className="task-column__add-task-form" onSubmit={handleAddTask}>
