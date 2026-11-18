@@ -5,10 +5,11 @@ import { TaskCard } from './components/taskCard';
 interface Task {
   id: string;
   title: string;
-  description?: string;
+  description: string | null;
   status: 'todo' | 'in_progress' | 'in_review' | 'done';
-  priority?: 'low' | 'normal' | 'high';
-  due_date?: string;
+  priority: 'low' | 'normal' | 'high' | null;
+  assignee_id: string | null;
+  due_date: string | null;
   user_id: string;
 }
 
@@ -18,7 +19,7 @@ interface ColumnProps {
   headerColor: string;
   tasks: Task[];
   onTaskClick?: (task: Task) => void;
-  onAddTask: (status: ColumnProps['id'], title: string) => Promise<void>;
+  onCreateTask: (status: ColumnProps['id']) => void;
   onRemoveTask: (task: Task) => Promise<void>;
   onMoveTask: (taskId: string, newStatus: ColumnProps['id']) => Promise<void>;
 }
@@ -29,34 +30,12 @@ export const Column: React.FC<ColumnProps> = ({
   headerColor,
   tasks,
   onTaskClick,
-  onAddTask,
+  onCreateTask,
   onRemoveTask,
   onMoveTask,
 }) => {
-  const [isAddingTask, setIsAddingTask] = React.useState(false);
-  const [newTaskTitle, setNewTaskTitle] = React.useState('');
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [addError, setAddError] = React.useState<string | null>(null);
   const [isDragOver, setIsDragOver] = React.useState(false);
   const [moveError, setMoveError] = React.useState<string | null>(null);
-
-  const handleAddTask = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const trimmedTitle = newTaskTitle.trim();
-    if (!trimmedTitle || isSubmitting) return;
-
-    setIsSubmitting(true);
-    setAddError(null);
-    try {
-      await onAddTask(id, trimmedTitle);
-      setNewTaskTitle('');
-      setIsAddingTask(false);
-    } catch (error) {
-      setAddError(error instanceof Error ? error.message : 'Failed to add task');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
@@ -101,12 +80,10 @@ export const Column: React.FC<ColumnProps> = ({
         <button
           className="task-column__add-button"
           type="button"
-          onClick={() => {
-            setAddError(null);
-            setIsAddingTask(true);
-          }}
+          aria-label={`Create task in ${title}`}
+          onClick={() => onCreateTask(id)}
         >
-          + 
+          +
         </button>
       </div>
 
@@ -116,9 +93,9 @@ export const Column: React.FC<ColumnProps> = ({
             key={task.id}
             id={task.id}
             title={task.title}
-            description={task.description}
-            priority={task.priority}
-            dueDate={task.due_date}
+            description={task.description ?? undefined}
+            priority={task.priority ?? undefined}
+            dueDate={task.due_date ?? undefined}
             accentColor={headerColor}
             onClick={() => onTaskClick?.(task)}
             onRemove={() => onRemoveTask(task)}
@@ -127,39 +104,6 @@ export const Column: React.FC<ColumnProps> = ({
       </div>
 
       {moveError && <p className="task-column__form-error" role="alert">{moveError}</p>}
-
-      {isAddingTask && (
-        <form className="task-column__add-task-form" onSubmit={handleAddTask}>
-          <input
-            id={`new-task-${id}`}
-            type="text"
-            placeholder="Enter task title..."
-            value={newTaskTitle}
-            onChange={(e) => setNewTaskTitle(e.target.value)}
-            autoFocus
-            maxLength={200}
-            required
-            disabled={isSubmitting}
-          />
-          {addError && <p className="task-column__form-error" role="alert">{addError}</p>}
-          <div className="task-column__form-actions">
-            <button type="submit" disabled={isSubmitting || !newTaskTitle.trim()}>
-              {isSubmitting ? 'Adding...' : 'Add'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsAddingTask(false);
-                setNewTaskTitle('');
-                setAddError(null);
-              }}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
     </section>
   );
 };
